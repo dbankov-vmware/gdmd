@@ -59,6 +59,8 @@ my $lib = 0;
 my $tmpdir;
 my %tmpdir_objs;
 my $stdin = 0;
+my $xcc = 0;
+my $static_stdcpp = 0;
 
 my @sources;
 my @objects;
@@ -166,6 +168,7 @@ Usage:
   -wi            enable informational warnings
   -X             generate JSON file
   -Xffilename    write JSON file to filename
+  -Xcc=<driverflag> pass driverflag to linker driver (gdc)
 EOF
 ;
 }
@@ -463,6 +466,12 @@ while ( $arg_i < scalar(@ARGV) ) {
     } elsif ( $arg =~ m/^-Xf(.*)$/ ) {
         $json = 1;
         $json_file = $1;
+    } elsif ( $arg =~ m/^-Xcc=(.*)$/ ) {
+        $xcc = 1;
+        push @link_out, split(qr/ /, $1);
+        if ( $1 =~ m/-static-libstdc\+\+/ ) {
+            $static_stdcpp = 1;
+        }
     } elsif ( $arg eq '-fall-sources' ) {
         $seen_all_sources_flag = 1;
     } elsif ( $arg =~ m/^-f.+/ ) {
@@ -721,6 +730,15 @@ foreach my $srcf_i (@sources) {
 }
 
 if ($ok && ($link || $stdin)) {
+    if ( $xcc ) {
+        if ( $static_stdcpp ) {
+            push @link_out, "-Wl,-Bstatic";
+        }
+        push @link_out, "-Wl,-lstdc++";
+        if ( $static_stdcpp ) {
+            push @link_out, "-Wl,-Bdynamic";
+        }
+    }
     my @cmd = ($gdc, @out, @dobjects, @objects, @link_out);
     if ( $output_file ) {
         push @cmd, '-o', $output_file;
